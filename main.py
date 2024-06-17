@@ -12,6 +12,8 @@ load_dotenv()
 
 CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID')
 CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET')
+LASTFM_ID = os.getenv('LASTFM_CLIENT_ID')
+LASTFM_SECRET = os.getenv('LASTFM_CLIENT_SECRET')
 
 class Artist:
     def __init__(self, name, followers, popularity, genre):
@@ -19,6 +21,15 @@ class Artist:
         self.followers = followers
         self.popularity = popularity
         self.genre = genre
+    
+    def get(self):
+        return {
+            "name": self.name,
+            "followers": self.followers,
+            "popularity": self.popularity,
+            "genre": self.genre,
+        }
+
     
     def __str__(self):
         return (
@@ -29,16 +40,16 @@ class Artist:
         )
 
 class Song:
-    def __init__(self, name, artists, duration, explicit, popularity):
+    def __init__(self, name, artists, duration, explicit, popularity, genre):
         self.name = name
         self.artists = artists
         self.duration = duration
         self.explicit = explicit
         self.popularity = popularity
+        self.genre = genre
 
     def get(self):
         artist_names = [artist.name for artist in self.artists]
-        genres = set(genre for artist in self.artists for genre in artist.genre)
         artist_followers = [artist.followers for artist in self.artists]
         artist_popularities = [artist.popularity for artist in self.artists]
 
@@ -48,7 +59,7 @@ class Song:
             "duration": self.duration,
             "explicit": self.explicit,
             "popularity": self.popularity,
-            "genre": list(genres),
+            "genre": list(self.genre),
             "artist_followers": artist_followers,
             "artist_popularity": artist_popularities
         }
@@ -290,6 +301,59 @@ def get_artist(access_token, artist_id):
     response = requests.get(url, headers=headers)
     return response.json()
 
+def get_genre(name, artists):
+    known_genres = [
+        'pop', 'rock', 'hip hop', 'rap', 'jazz', 'classical', 'electronic', 'folk', 'country',
+        'blues', 'reggae', 'metal', 'punk', 'soul', 'funk', 'disco', 'house', 'techno', 'trance',
+        'dubstep', 'bossa nova', 'indie', 'alternative', 'r&b', 'latin', 'world', 'ska', 'ambient',
+        'grunge', 'opera', 'gospel', 'bluegrass', 'swing', 'synthpop', 'new wave', 'edm', 
+        'video game music', 'trap', 'lo-fi', 'dance', 'electro', 'hardstyle', 'glitch hop', 'vaporwave',
+        'chiptune', 'progressive house', 'deep house',
+        'k-pop', 'j-pop', 'j-rock', 'j-rap', 'jazz fusion', 'enka', 'kayokyoku',
+        'mandopop', 'cantopop', 'thai-pop', 'v-pop', 'thai pop', 'indian pop',
+        'bhangra', 'qawwali', 'filmi', 'arab pop', 'rai', 'turkish pop', 'greek pop',
+        'afrobeat', 'highlife', 'juj music', 'kizomba', 'kuduro', 'kwaito', 'flamenco', 'tango',
+        'samba', 'reggaeton', 'merengue', 'bachata', 'cumbia', 'vallenato', 'fado', 'klezmer',
+        'schlager', 'zouk', 'soukus', 'mbalax', 'kaseko', 'maloya', 'funana', 'sega', 'calypso', 
+        'soca', 'mento', 'salsa', 'chicha', 'huayno', 'forro', 'brega', 'axé', 'frevo', 'pagode',
+        'tropicalia', 'celtic', 'traditional irish', 'eurobeat'
+    ]
+
+    artist_list = []
+
+    for artist in artists:
+        artist_list.append(artist.get()['name'])
+    
+    if not name or not artist_list:
+        raise ValueError("Song dictionary must contain 'name' and 'artists' keys.")
+
+    artist_name = ', '.join(artist_list)
+    
+    url = 'http://ws.audioscrobbler.com/2.0/'
+
+    params = {
+        'method': 'track.getInfo',
+        'api_key': LASTFM_ID,
+        'artist': artist_name,
+        'track': name,
+        'format': 'json'
+    }
+    
+    response = requests.get(url, params=params)
+    data = response.json()
+    
+    if 'track' in data and 'toptags' in data['track']:
+        tags = data['track']['toptags']['tag']
+
+        genres = [tag['name'].lower() for tag in tags if tag['name'].lower() in known_genres]
+
+        if not genres and tags:
+            genres = [tags[0]['name'].lower()]
+
+        return genres
+    else:
+        return []
+
 def visualization(playlist):
     song_stats = playlist.song_statistics()
     genre_stats = song_stats['genre']
@@ -318,7 +382,8 @@ def visualization(playlist):
 
     textstr1 = '\n'.join((
         f"Most Popular Genre: {genre_stats['mode']}",
-        f"Genre Entropy: {genre_stats['entropy']:.2f}"
+        f"Genre Entropy: {genre_stats['entropy']:.2f}",
+        f"No. of Songs: {playlist.playlist_length()}"
     ))
 
     textstr2 = '\n'.join((
@@ -419,6 +484,7 @@ def main():
     songs = []
 
     for s in playlist_data:
+
         name = s['track']['name']
         artists = []
         duration = s['track']['duration_ms'] / 1000
@@ -426,6 +492,15 @@ def main():
         popularity = s['track']['popularity']
 
         artist_data = s['track']['artists']
+
+        for a in artist_data:
+            skip = False
+
+            if a['id'] is None:
+                skip = True
+
+        if skip:
+            continue
 
         for a in artist_data:
             artist_id = a['id']
@@ -439,11 +514,26 @@ def main():
             artist = Artist(artist_name, artist_followers, artist_popularity, artist_genres)
             artists.append(artist)
         
-        song = Song(name, artists, duration, explicit, popularity)
+        genre = get_genre(name, artists)
+
+        if len(genre) <= 0 or genre == []:
+            genre = artists[0].get()['genre']
+
+        song = Song(name, artists, duration, explicit, popularity, genre)
         songs.append(song)
         
     playlist = Playlist(songs)
-    visualization(playlist)
+    
+    if playlist.playlist_length() <= 1:
+        print(playlist.playlist_length())
+        return False
+    else:
+        visualization(playlist)
+        return True
     
 if __name__ == '__main__':
-    main()
+    run = main()
+
+    while not run:
+        print("Playlist has less than 2 songs - Try another playlist or adding more songs")
+        run = main()
