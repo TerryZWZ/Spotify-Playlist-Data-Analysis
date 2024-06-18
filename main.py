@@ -126,6 +126,8 @@ class Playlist:
                 'mode': artist_df['followers'].mode().tolist(),
                 'std': artist_df['followers'].std(),
                 'variance': artist_df['followers'].var(),
+                'skewness': artist_df['followers'].skew(),
+                'kurtosis': artist_df['followers'].kurt(),
                 'max' : artist_df['followers'].max(),
                 'min' : artist_df['followers'].min(),
                 'iqr': artist_df['followers'].quantile(0.75) - artist_df['followers'].quantile(0.25)
@@ -136,6 +138,8 @@ class Playlist:
                 'mode': artist_df['popularity'].mode().tolist(),
                 'std': artist_df['popularity'].std(),
                 'variance': artist_df['popularity'].var(),
+                'skewness': artist_df['popularity'].skew(),
+                'kurtosis': artist_df['popularity'].kurt(),
                 'max' : artist_df['popularity'].max(),
                 'min' : artist_df['popularity'].min(),
                 'iqr': artist_df['popularity'].quantile(0.75) - artist_df['followers'].quantile(0.25)
@@ -419,36 +423,112 @@ def visualization(playlist):
         else:
             return "Very High"
 
-    def popularity_preference(mean, std):
-        if mean > 70 and std < 10:
-            return "Very High"
+    def popularity_preference(mean, std, skewness, kurtosis):
+        if mean > 70:
+            if std < 10:
+                return "The playlist has very popular songs\nthat are consistently liked by listeners."
+            else:
+                return "The playlist has very popular songs,\nbut with varying levels of popularity among the tracks."
         elif mean > 60:
-            return "High"
+            if std > 15:
+                return "The playlist has popular songs,\nbut their popularity varies widely."
+            elif skewness > 1:
+                return "The playlist has popular songs,\nbut there are many less popular tracks as well."
+            elif kurtosis > 3:
+                return "The playlist has popular songs,\nwith some tracks being extremely popular or unpopular."
+            else:
+                return "The playlist has generally popular songs."
+        elif skewness > 2 and kurtosis > 5:
+            return "The playlist has a very unusual mix of song popularity,\nwith many tracks being either very popular or very unpopular."
         else:
-            return "Moderate"
-
-    def artist_popularity_level(mean, std):
-        if mean > 1e6 and std < 1e5:
-            return "Very High"
+            if std > 15:
+                return "The playlist has songs with a moderate level of popularity,\nbut their popularity varies widely."
+            else:
+                return "The playlist has a moderate level of song popularity."
+            
+    def artist_popularity_level(mean, std, skewness, kurtosis):
+        if mean > 1e6:
+            if std < 1e5:
+                return "The artists in this playlist are extremely popular,\nwith consistently high follower counts."
+            else:
+                return "The artists in this playlist are extremely popular,\nbut their follower counts vary widely."
         elif mean > 5e5:
-            return "High"
+            if std > 1e5:
+                return "The playlist features popular artists,\nbut their follower counts vary significantly."
+            elif skewness > 1:
+                return "The playlist features popular artists,\nbut there are many with fewer followers."
+            elif kurtosis > 3:
+                return "The playlist features popular artists,\nwith some having extremely high or low follower counts."
+            else:
+                return "The playlist features generally popular artists."
         elif mean > 1e5:
-            return "Moderate"
+            if std > 1e5:
+                return "The playlist has moderately popular artists,\nbut their follower counts vary widely."
+            elif skewness > 1:
+                return "The playlist has moderately popular artists,\nbut many with fewer followers."
+            elif kurtosis > 3:
+                return "The playlist has moderately popular artists,\nwith some extreme outliers."
+            else:
+                return "The playlist has moderately popular artists."
+        elif skewness > 3 and kurtosis > 10:
+            return "The playlist features a very unusual mix of artist popularity,\nwith many artists either being very popular or not popular at all."
         else:
-            return "Low"
+            if std > 1e5:
+                return "The playlist features artists with a low number of followers,\nbut their follower counts vary significantly."
+            else:
+                return "The playlist features artists with a low number of followers."
 
-    def song_length_preference(mean):
+    def song_length_preference(mean, std, skewness, kurtosis):
         if mean > 240:
-            return "Long"
+            if std > 60:
+                if skewness > 1:
+                    return "The playlist has mostly long songs,\nbut with a lot of variability and many shorter tracks."
+                elif kurtosis > 3:
+                    return "The playlist has mostly long songs,\nwith a lot of variability and some extreme lengths."
+                else:
+                    return "The playlist has mostly long songs\nwith a lot of variability."
+            else:
+                if skewness > 1:
+                    return "The playlist has mostly long songs,\nbut many of them are shorter."
+                elif kurtosis > 3:
+                    return "The playlist has mostly long songs,\nwith some extreme lengths."
+                else:
+                    return "The playlist has mostly long songs."
         elif mean > 180:
-            return "Moderate"
+            if std > 60:
+                if skewness > 1:
+                    return "The playlist has a mix of moderate-length songs,\nbut with a lot of variability and many shorter tracks."
+                elif kurtosis > 3:
+                    return "The playlist has a mix of moderate-length songs,\nwith a lot of variability and some extreme lengths."
+                else:
+                    return "The playlist has a mix of moderate-length songs,\nwith a lot of variability."
+            else:
+                if skewness > 1:
+                    return "The playlist has a mix of moderate-length songs,\nbut many of them are shorter."
+                elif kurtosis > 3:
+                    return "The playlist has a mix of moderate-length songs,\nwith some extreme lengths."
+                else:
+                    return "The playlist has a mix of moderate-length songs."
         else:
-            return "Short"
+            if std > 60:
+                if skewness > 1:
+                    return "The playlist has mostly short songs,\nbut with a lot of variability and many very short tracks."
+                elif kurtosis > 3:
+                    return "The playlist has mostly short songs,\nwith a lot of variability and some extreme lengths."
+                else:
+                    return "The playlist has mostly short songs,\nwith a lot of variability."
+            else:
+                if skewness > 1:
+                    return "The playlist has mostly short songs,\nbut many of them are very short."
+                elif kurtosis > 3:
+                    return "The playlist has mostly short songs,\nwith some extreme lengths."
+                else:
+                    return "The playlist has mostly short songs."
 
     textstr5 = f"Diversity Level:\n{diversity_level(genre_stats['entropy'])}"
-    textstr6 = f"Popularity Preference:\n{popularity_preference(popularity_stats['mean'], popularity_stats['std'])}"
-    textstr7 = f"Artist Popularity Level:\n{artist_popularity_level(artist_stats['followers']['mean'], artist_stats['followers']['std'])}"
-    textstr8 = f"Song Length Preference:\n{song_length_preference(duration_stats['mean'])}"
+    textstr6 = f"Popularity Preference:\n{popularity_preference(popularity_stats['mean'], popularity_stats['std'], popularity_stats['skewness'], popularity_stats['kurtosis'])}"
+    textstr7 = f"Artist Popularity Level:\n{artist_popularity_level(artist_stats['followers']['mean'], artist_stats['followers']['std'], artist_stats['followers']['skewness'], artist_stats['followers']['kurtosis'])}"
+    textstr8 = f"Song Length Preference:\n{song_length_preference(duration_stats['mean'], duration_stats['std'], duration_stats['skewness'], duration_stats['kurtosis'])}"
 
     def add_text_box(ax, textstr, x, y, colour, fontsize, alignment):
         ax.text(x, y, textstr, transform=ax.transAxes, fontsize=fontsize, bbox=dict(boxstyle='round,pad=0.3', edgecolor='black', facecolor=colour, alpha=0.7,),
@@ -458,10 +538,10 @@ def visualization(playlist):
     add_text_box(ax, textstr2, 0.20, -0.5, 'lightgrey', 12, 'left')
     add_text_box(ax, textstr3, 0.40, -0.5, 'lightgrey', 12, 'left')
     add_text_box(ax, textstr4, 0.60, -0.5, 'lightgrey', 12, 'left')
-    add_text_box(ax, textstr5, 0.20, -0.75, 'lightblue', 16, 'center')
-    add_text_box(ax, textstr6, 0.40, -0.75, 'lightblue', 16, 'center')
-    add_text_box(ax, textstr7, 0.60, -0.75, 'lightblue', 16, 'center')
-    add_text_box(ax, textstr8, 0.80, -0.75, 'lightblue', 16, 'center')
+    add_text_box(ax, textstr5, 0.00, -0.75, 'lightblue', 12, 'center')
+    add_text_box(ax, textstr6, 0.25, -0.75, 'lightblue', 12, 'center')
+    add_text_box(ax, textstr7, 0.55, -0.75, 'lightblue', 12, 'center')
+    add_text_box(ax, textstr8, 0.85, -0.75, 'lightblue', 12, 'center')
 
     plt.tight_layout()
     plt.show()
